@@ -1,0 +1,21 @@
+.env
+__pycache__/
+*.py[cod]
+*.log
+.venv/
+venv/
+node_modules/
+dist/
+dist-demo/
+
+# Generated newsletter output (run_newsletter.py --output-html).
+# Dated artifacts, reproducible from the pipeline; the template that
+# builds them is run_newsletter.py, which stays tracked.
+newsletter_*.html
+newsletter_*.txt
+
+# Raw broker responses and account snapshots saved by the scheduled trading
+# tasks (Robinhood MCP). Account data: never commit.
+.trading/
+# Universe stage hand-off file (run_all.py, deleted after reading)
+.universe-*.txt

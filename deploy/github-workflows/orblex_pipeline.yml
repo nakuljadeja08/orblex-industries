@@ -1,0 +1,244 @@
+name: Orblex Industries — Daily Pipeline
+run-name: ${{ (github.event.schedule == '0 15 * * 6' || inputs.book == 'longterm') && 'Weekly long-term run' || inputs.source == 'cron' && 'Scheduled run (on time)' || github.event_name == 'schedule' && 'Scheduled run (GitHub fallback)' || inputs.source == 'dashboard' && 'Dashboard run' || 'Manual run' }}
+
+on:
+  # Weekday pre-open run for swing trading (decided 2026-10-12): plans must be
+  # built from the latest close before the 9:30 ET open, so the morning
+  # trade-plan task can size orders for approval. 11:45 UTC = 7:45 ET in
+  # summer, 6:45 ET in winter; GitHub may start scheduled runs a few minutes
+  # late. NYSE holidays are skipped below. Each run emails the newsletter.
+  # Manual runs still start from the dashboard's RUN PIPELINE button or the
+  # GitHub Actions UI. Daily swing runs skip the allocator, report and watchdog (run_all.py).
+  # The weekly long-term book for the main account is dispatched at 9:00 ET by pg_cron. This
+  # Saturday 15:00 UTC cron (10:00 ET in winter, 11:00 in summer) is only its fallback: it must
+  # fall after both the 8:30 holdings snapshot and the 9:00 run, in either season
+  # (EXECUTOR_DESIGN.md §2.1). Position mode over universe.txt, then build_longterm.py;
+  # runs although the market is closed. Its run ids start with "longterm-".
+  schedule:
+    - cron: "45 11 * * 1-5"
+    - cron: "0 15 * * 6"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no Supabase writes)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      stages:
+        description: "Specific stages to run (e.g. '1 2 3') — leave empty for all"
+        required: false
+        default: ""
+      skip_newsletter:
+        description: "Skip newsletter stage"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      force_run:
+        description: "Run even if NYSE is closed today"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      source:
+        description: "Who triggered the run (set by the dashboard)"
+        required: false
+        default: "github"
+      book:
+        description: "daily = the TRADING_MODE run; longterm = the weekly long-term book"
+        required: false
+        default: "daily"
+        type: choice
+        options: ["daily", "longterm"]
+
+# Never run two pipelines at once — a dashboard run landing on top of the
+# previous one would double-write the same day's reports. Queue, don't cancel.
+concurrency:
+  group: orblex-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run-pipeline:
+    name: Daily Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30       # hard limit — prevents runaway jobs eating minutes
+
+    steps:
+      # ── 1. Checkout repo ────────────────────────────────────────────────────
+      # Scheduled runs fire on the default branch (develop); run the release
+      # code instead, the same branch the dashboard's RUN PIPELINE dispatches.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'release' || github.ref }}
+
+      # ── 2. Set up Python ────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"           # caches pip downloads between runs
+
+      # ── 3. Install dependencies ─────────────────────────────────────────────
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── 4. Write .env from GitHub Secrets ───────────────────────────────────
+      # We reconstruct .env at runtime from secrets — never commit .env to git
+      - name: Write .env file
+        run: |
+          cat > .env << 'EOF'
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          NEWSAPI_KEY=${{ secrets.NEWSAPI_KEY }}
+          POLYGON_API_KEY=${{ secrets.POLYGON_API_KEY }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+          NEWSLETTER_TO=${{ secrets.NEWSLETTER_TO }}
+          NEWSLETTER_FROM=${{ secrets.NEWSLETTER_FROM }}
+          SEC_USER_AGENT=${{ secrets.SEC_USER_AGENT }}
+          OPENFIGI_API_KEY=${{ secrets.OPENFIGI_API_KEY }}
+          HISTORICAL_DAYS=90
+          DATA_PROVIDER=yfinance
+          TRADING_MODE=${{ (github.event.schedule == '0 15 * * 6' || github.event.inputs.book == 'longterm') && 'position' || (vars.TRADING_MODE || 'position') }}
+          BOOK=${{ (github.event.schedule == '0 15 * * 6' || github.event.inputs.book == 'longterm') && 'longterm' || 'daily' }}
+          PIPELINE_V2=${{ vars.PIPELINE_V2 || secrets.PIPELINE_V2 || '0' }}
+          RISK_ENGINE=${{ vars.RISK_ENGINE || 'rules' }}
+          WATCHDOG_ENGINE=${{ vars.WATCHDOG_ENGINE || 'rules' }}
+          NEWS_ENABLED=true
+          NEWS_PROVIDER=newsapi
+          MAX_ARTICLES_PER_TICKER=5
+          SCHEDULER_DRY_RUN=false
+          EOF
+
+      # GitHub's own cron now only backs up the on-time dispatch from Supabase pg_cron
+      # (automation_schema.sql). It has run hours late, so skip it when today's run exists.
+      - name: Skip the GitHub fallback if today's run already happened
+        id: already
+        if: github.event_name == 'schedule'
+        run: |
+          python - << 'PYEOF'
+          import os, datetime
+          from zoneinfo import ZoneInfo
+          from config import load_config
+          from loader import get_client
+          c = load_config(); s = get_client(c.supabase_url, c.supabase_key)
+          d = datetime.datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+          q = s.table("agent_reports").select("run_id").eq("report_date", d)
+          q = q.like("run_id", "longterm-%") if os.environ.get("BOOK") == "longterm" else q.not_.like("run_id", "longterm-%")
+          skip = "true" if q.limit(1).execute().data else "false"
+          print("today's run already exists:", skip)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"skip={skip}\n")
+          PYEOF
+
+      # ── 5. Market holiday check ─────────────────────────────────────────────
+      # Skip the full pipeline on NYSE holidays — fast Python check
+      - name: Check if NYSE is open today
+        id: market_check
+        run: |
+          python - << 'EOF'
+          import sys
+          from datetime import date
+          try:
+              import pandas_market_calendars as mcal
+              nyse = mcal.get_calendar("NYSE")
+              today = date.today().strftime("%Y-%m-%d")
+              schedule = nyse.schedule(start_date=today, end_date=today)
+              is_open = not schedule.empty
+          except ImportError:
+              # If pandas_market_calendars not installed, assume open on weekdays
+              is_open = date.today().weekday() < 5
+
+          if is_open:
+              print("NYSE is OPEN today — running pipeline")
+              print("market_open=true")
+          else:
+              print("NYSE is CLOSED today — skipping pipeline")
+              print("market_open=false")
+
+          # Write to GitHub env for next step
+          with open("$GITHUB_OUTPUT", "a") as f:
+              f.write(f"market_open={'true' if is_open else 'false'}\n")
+          EOF
+        env:
+          GITHUB_OUTPUT: ${{ runner.temp }}/github_output.txt
+
+      # ── 6. Install market calendar (optional but recommended) ───────────────
+      - name: Install market calendar package
+        run: pip install pandas-market-calendars --quiet
+
+      # ── 7. Re-run holiday check with full package ───────────────────────────
+      - name: Check market calendar (with pandas-market-calendars)
+        id: market_open
+        run: |
+          python - << 'PYEOF'
+          import sys
+          from datetime import date
+
+          try:
+              import pandas_market_calendars as mcal
+              nyse     = mcal.get_calendar("NYSE")
+              today    = date.today().strftime("%Y-%m-%d")
+              schedule = nyse.schedule(start_date=today, end_date=today)
+              is_open  = not schedule.empty
+          except Exception as e:
+              print(f"Calendar check failed ({e}) — defaulting to weekday check")
+              is_open = date.today().weekday() < 5
+
+          status = "true" if is_open else "false"
+          print(f"NYSE open: {status}")
+
+          import os
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"is_open={status}\n")
+          PYEOF
+
+      # ── 8. Run the pipeline ─────────────────────────────────────────────────
+      - name: Run Orblex Industries Pipeline
+        if: (steps.market_open.outputs.is_open == 'true' || github.event.inputs.force_run == 'true' || github.event.schedule == '0 15 * * 6' || github.event.inputs.book == 'longterm') && steps.already.outputs.skip != 'true'
+        run: |
+          # Build args from workflow_dispatch inputs (empty for scheduled runs)
+          ARGS=""
+
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+
+          if [ "${{ github.event.inputs.skip_newsletter }}" = "true" ]; then
+            ARGS="$ARGS --skip-newsletter"
+          fi
+
+          if [ -n "${{ github.event.inputs.stages }}" ]; then
+            ARGS="$ARGS --stages ${{ github.event.inputs.stages }}"
+          fi
+
+          echo "Running: python run_all.py $ARGS"
+          python run_all.py $ARGS
+        env:
+          PYTHONUNBUFFERED: "1"    # ensures logs stream in real-time
+
+      # ── 9. Skip message for holidays ────────────────────────────────────────
+      - name: Skip — market closed
+        if: steps.market_open.outputs.is_open == 'false' && github.event.inputs.force_run != 'true' && github.event.schedule != '0 15 * * 6' && github.event.inputs.book != 'longterm'
+        run: |
+          echo "NYSE is closed today. Pipeline skipped."
+          echo "No action needed."
+
+      # ── 10. Upload logs on failure ───────────────────────────────────────────
+      - name: Upload pipeline logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs-${{ github.run_id }}
+          path: |
+            *.log
+            scheduler.log
+          retention-days: 7

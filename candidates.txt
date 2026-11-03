@@ -1,0 +1,92 @@
+# Orblex Industries — sleeve candidate pool (TRADING_MODE=swing)
+#
+# Each weekday the universe stage (run_universe.py) screens these names
+# against the agentic account's latest balance and adds the best few that the
+# account can actually size to the day's analysis, next to the core list in
+# universe.txt. Nothing here is analysed unless it passes the screen:
+#   price ≥ $5, ≥ $20M traded per day, daily ATR ≤ 6%, at least one whole
+#   share sizeable at 1% risk to a 1.5-ATR stop and under the 30% position cap,
+#   and in an uptrend (close above its 50-day average, trend not DOWN).
+# Passing names are ranked by 20-day relative strength vs SPY; the top
+# UNIVERSE_SLEEVE_SIZE (default 8) are analysed.
+#
+# Format: TICKER  SECTOR  # comment. SECTOR must be a key of SECTOR_THEME in
+# instrument_policy.py — it is how a sleeve pick falls under the sector and
+# theme caps. Names already in universe.txt are ignored here.
+
+# ── Semiconductors ───────────────────────────────────────────────────────
+INTC   SEMIS            # Intel
+AMD    SEMIS            # Advanced Micro Devices
+ON     SEMIS            # onsemi
+MCHP   SEMIS            # Microchip
+SWKS   SEMIS            # Skyworks
+QRVO   SEMIS            # Qorvo
+AMKR   SEMIS            # Amkor — packaging
+GFS    SEMIS            # GlobalFoundries
+ASX    SEMIS            # ASE Technology — packaging
+MRVL   SEMIS            # Marvell
+LSCC   SEMIS            # Lattice
+SMCI   SEMIS            # Super Micro — AI servers
+TXN    SEMIS            # Texas Instruments
+NXPI   SEMIS            # NXP
+
+# ── Software / cybersecurity / AI apps ───────────────────────────────────
+DBX    SOFTWARE         # Dropbox
+BOX    SOFTWARE         # Box
+TOST   SOFTWARE         # Toast
+PD     SOFTWARE         # PagerDuty
+U      SOFTWARE         # Unity
+GTLB   SOFTWARE         # GitLab
+BILL   SOFTWARE         # BILL Holdings
+DT     SOFTWARE         # Dynatrace
+NTNX   SOFTWARE         # Nutanix
+OKTA   SOFTWARE         # Okta
+ZM     SOFTWARE         # Zoom
+ESTC   SOFTWARE         # Elastic
+DOCU   SOFTWARE         # DocuSign
+MDB    SOFTWARE         # MongoDB
+NET    SOFTWARE         # Cloudflare
+FTNT   SOFTWARE         # Fortinet
+ZS     SOFTWARE         # Zscaler
+PLTR   SOFTWARE         # Palantir
+SOUN   SOFTWARE         # SoundHound AI
+IONQ   SOFTWARE         # IonQ — quantum
+IGV    SOFTWARE         # iShares Expanded Tech-Software ETF
+CIBR   SOFTWARE         # First Trust Cybersecurity ETF
+
+# ── Networking / datacenter infrastructure ───────────────────────────────
+CSCO   INFRASTRUCTURE   # Cisco
+HPE    INFRASTRUCTURE   # Hewlett Packard Enterprise
+ANET   INFRASTRUCTURE   # Arista
+CIEN   INFRASTRUCTURE   # Ciena
+VRT    INFRASTRUCTURE   # Vertiv — datacenter power & cooling
+DELL   INFRASTRUCTURE   # Dell
+SKYY   INFRASTRUCTURE   # First Trust Cloud Computing ETF
+
+# ── Power / nuclear / utilities with datacenter load ─────────────────────
+NEE    POWER            # NextEra
+NRG    POWER            # NRG Energy
+CEG    POWER            # Constellation
+SMR    POWER            # NuScale
+OKLO   POWER            # Oklo
+CCJ    POWER            # Cameco — uranium
+UEC    POWER            # Uranium Energy
+BE     POWER            # Bloom Energy — fuel cells
+
+# ── Clean energy ─────────────────────────────────────────────────────────
+ENPH   CLEAN_ENERGY     # Enphase
+RUN    CLEAN_ENERGY     # Sunrun
+FSLR   CLEAN_ENERGY     # First Solar
+
+# ── Robotics / automation / space ────────────────────────────────────────
+TER    ROBOTICS         # Teradyne — robotics & test
+ROK    ROBOTICS         # Rockwell Automation
+SERV   ROBOTICS         # Serve Robotics
+BOTZ   ROBOTICS         # Global X Robotics & AI ETF
+RKLB   AEROSPACE_DEFENSE  # Rocket Lab
+JOBY   AEROSPACE_DEFENSE  # Joby Aviation
+ACHR   AEROSPACE_DEFENSE  # Archer Aviation
+
+# ── Broad growth ETFs ────────────────────────────────────────────────────
+QQQM   MEGA_CAP_TECH    # Invesco Nasdaq-100 (low-cost share)
+SMH    SEMIS            # VanEck Semiconductor ETF

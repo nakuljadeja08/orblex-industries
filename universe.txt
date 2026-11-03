@@ -1,0 +1,71 @@
+# Orblex Industries — tracked universe
+#
+# One ticker per line. Blank lines and #-comments are ignored; anything
+# after a # on a line is a comment. Symbols are upper-cased on load and
+# de-duplicated, first occurrence wins.
+#
+# This file is the source of truth for what the pipeline tracks. It lives
+# in git precisely so the universe is reviewable and travels with the repo
+# — .env holds secrets and must not carry it.
+#
+# Setting TICKERS in the environment overrides this file entirely, which is
+# useful for a one-off run against a subset:
+#     TICKERS=NVDA,AVGO python run_all.py
+#
+# Symbols follow the active DATA_PROVIDER's convention. On yfinance that
+# means a dash for share classes (MOG-A, not MOG.A); Polygon uses a dot.
+#
+# Sector and instrument-class policy for these names lives in
+# instrument_policy.py — add a mapping there when adding a ticker here,
+# or it falls through to sector OTHER and escapes the concentration caps.
+
+# ── Semiconductors & AI compute ──────────────────────────────────────────
+NVDA
+MU
+QCOM
+ALAB
+AVGO
+NBIS
+POET
+WDC         # Western Digital — storage / memory
+ALGM        # Allegro MicroSystems — sensor ICs
+
+# ── Enterprise software / SaaS / cloud ───────────────────────────────────
+MSFT
+CRM
+ORCL
+DDOG
+NOW
+SNOW        # Snowflake
+
+# ── AI cloud infrastructure ──────────────────────────────────────────────
+CRWV        # CoreWeave — GPU cloud
+
+# ── Mega-cap platform tech ───────────────────────────────────────────────
+AAPL
+GOOG
+
+# ── Networking / optical infrastructure ──────────────────────────────────
+GLW
+
+# ── Power & clean energy ─────────────────────────────────────────────────
+VST         # Vistra
+NNE         # Nano Nuclear Energy
+
+# ── Robotics & automation ────────────────────────────────────────────────
+SYM         # Symbotic
+NOVT        # Novanta — precision photonics & motion
+ROBO        # ROBO Global Robotics & Automation ETF — no company fundamentals
+IBOT        # VanEck Robotics ETF — no company fundamentals
+
+# ── Small-account sleeve (added 2026-10-12) ──────────────────────────────
+# Lower-priced, liquid names the swing sizing can actually fill on a ~$500
+# account (whole shares, 30% position cap, ~1% risk to a 1.5-ATR stop).
+# Screened on price $10–45, ≥$20M/day traded, daily ATR ≤ 6%.
+PATH        # UiPath — AI / automation software
+AI          # C3.ai — enterprise AI software
+S           # SentinelOne — cybersecurity software
+UMC         # United Microelectronics — semiconductor foundry
+PCG         # PG&E — utility, datacenter load growth
+EXC         # Exelon — utility, datacenter load growth
+SCHG        # Schwab US Large-Cap Growth ETF — no company fundamentals

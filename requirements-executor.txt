@@ -1,0 +1,5 @@
+# Local-only extras for the Robinhood client / executor (EXECUTOR_DESIGN.md).
+# Not needed by the GitHub Actions pipeline, so kept out of requirements.txt.
+mcp>=2.3
+keyring>=25
+cryptography>=42

@@ -1,0 +1,23 @@
+# ── Core data ─────────────────────────────────────────────────────────────────
+# >=0.2.54 impersonates a browser (curl_cffi); older versions get 429'd by
+# Yahoo on cloud runners like GitHub Actions. Pinned to the local venv version.
+yfinance==1.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+pypdf>=5.0.0          # House PTR (congressional trade) PDFs — congress_ptr.py
+
+# ── Database ───────────────────────────────────────────────────────────────────
+supabase>=2.4.0
+
+# ── AI providers ──────────────────────────────────────────────────────────────
+anthropic>=0.40.0
+
+# ── Scheduling ────────────────────────────────────────────────────────────────
+apscheduler>=3.10.0
+pytz>=2024.1
+pandas-market-calendars>=4.3.0
+
+# ── Config ────────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0

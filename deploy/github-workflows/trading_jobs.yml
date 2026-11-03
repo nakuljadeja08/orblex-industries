@@ -1,0 +1,74 @@
+name: Orblex Industries — Trading Jobs
+run-name: ${{ inputs.job }}${{ inputs.dry_run == 'true' && ' (dry run)' || '' }}
+
+# Dispatched on time by Supabase pg_cron (automation_schema.sql → dispatch_due_jobs), not by
+# GitHub's own cron, which ran hours late. Each job is plain Python (jobs.py): no Claude, no PC.
+# Robinhood is read-only through rh_client, signed in with the encrypted token in Supabase.
+# Phase 5: the repository variable EXECUTOR_LIVE=1 makes the dryrun job send real orders to
+# Robinhood's in-app approval queue instead (rh_trader / run_executor.py). Unset = dry run.
+# executor_pass repeats that during the day; its schedule rows ship disabled (automation_schema.sql).
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which job"
+        required: true
+        type: choice
+        options: [morning_plan, dryrun, executor_pass, fill_sync, eod_review, holdings_snapshot]
+      dry_run:
+        description: "No DB writes except job_runs, no email"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+# One queue PER JOB. GitHub keeps only one *pending* run per concurrency group and cancels
+# older pending ones, so a shared group could silently drop a scheduled job when two queue
+# together (seen on 2026-10-16). The ET schedule spaces the jobs so they don't overlap
+# (the morning plan waits at most 35 min: 8:40 → 9:15, before the 9:25 dry run).
+concurrency:
+  group: orblex-trading-${{ inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50          # the morning plan may wait up to 35 min for the pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-executor.txt
+
+      - name: Write .env file
+        run: |
+          cat > .env << 'EOF'
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+          NEWSLETTER_FROM=${{ secrets.NEWSLETTER_FROM }}
+          ALERT_TO=${{ secrets.ALERT_TO }}
+          RH_TOKEN_KEY=${{ secrets.RH_TOKEN_KEY }}
+          RH_TOKEN_STORE=supabase
+          RH_AGENTIC_ACCOUNT=${{ secrets.RH_AGENTIC_ACCOUNT }}
+          RH_MAIN_ACCOUNT=${{ secrets.RH_MAIN_ACCOUNT }}
+          DASHBOARD_URL=${{ vars.DASHBOARD_URL }}
+          TRADING_MODE=${{ vars.TRADING_MODE || 'swing' }}
+          EXECUTOR_LIVE=${{ vars.EXECUTOR_LIVE || '0' }}
+          DATA_PROVIDER=yfinance
+          EOF
+
+      - name: Run job
+        run: python jobs.py ${{ inputs.job }} ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
+        env:
+          PYTHONUNBUFFERED: "1"
