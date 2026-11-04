@@ -6,8 +6,14 @@
   "installCommand": "npm install",
   "rewrites": [
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|api/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/playground.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{node_modules/**,src/**,dist/**,dist-demo/**,tests/**,deploy/**,docs/**,**/*.sql,**/*.md}"
+    }
+  }
 }

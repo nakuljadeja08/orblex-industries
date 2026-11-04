@@ -504,11 +504,12 @@ def _parse_response(text: str) -> Optional[dict]:
     return data
 
 
-def analyse(ctx: dict, api_key: Optional[str] = None) -> Optional[dict]:
+def analyse(ctx: dict, api_key: Optional[str] = None, raise_errors: bool = False) -> Optional[dict]:
     """
     Call Claude with the stock context and return structured analysis.
 
     Returns a dict with parsed agent output + token usage, or None on failure.
+    raise_errors=True re-raises API errors instead (the playground reports them to the visitor).
     """
     client = anthropic.Anthropic(api_key=api_key)  # uses ANTHROPIC_API_KEY env var if None
 
@@ -546,5 +547,7 @@ def analyse(ctx: dict, api_key: Optional[str] = None) -> Optional[dict]:
         }
 
     except Exception as e:
+        if raise_errors:
+            raise
         logger.error(f"  Anthropic API error for {ctx['ticker']}: {e}")
         return None

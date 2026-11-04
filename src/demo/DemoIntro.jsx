@@ -54,6 +54,12 @@ export default function DemoIntro({ onGo }) {
         </div>
       </section>
       <section>
+        <h3>TRY THE REAL ANALYST</h3>
+        <p>The PLAYGROUND tab runs the live system's analyst and rules on a chart you shape, with your own Claude key. Make a free account to save your runs.</p>
+        <p style={{ marginTop: 10 }}><button className="pg-btn" onClick={() => onGo("PLAYGROUND")}>Open the playground</button>{" "}
+          <span style={{ fontSize: 12, color: "var(--text-dimmer)" }}>About 10 seconds and a few cents of Claude usage per run.</span></p>
+      </section>
+      <section>
         <h3>TRY THESE</h3>
         <p>Open TRADE PLANS and approve or reject an order, set a daily mandate, or halt new entries. Your clicks change only this page and reset when you reload. Then open ANALYST and read "Why this call?" for any ticker, or switch to MAIN ACCOUNT for the weekly advice book.</p>
       </section>

@@ -30,6 +30,7 @@ Limits only tighten: a daily mandate you set can make a code ceiling stricter, n
 | Backtests | `swing_backtest.py`, `swing_screen_backtest.py`, `replay_executor.py` |
 | Executor (off by default) | `executor.py`, `rh_client.py` (read-only), `rh_trader.py` (the only module that can send), `run_executor.py` |
 | Dashboard | `src/` (React and Vite), `api/run-pipeline.js` |
+| Playground | `playground.py` (the engine), `api/playground.py` (the server function), `src/demo/Playground.jsx`, `playground_schema.sql` |
 | Database | `*_schema.sql` (Supabase Postgres) |
 | Scheduling | `jobs.py`, `deploy/github-workflows/`, `automation_schema.sql` |
 | Docs | `docs/REFERENCE.md` (how everything works), `EXECUTOR_DESIGN.md` (design log) |
@@ -46,6 +47,20 @@ npm run dev:demo
 ```
 
 Open http://localhost:5174. `npm run build:demo` builds it into `dist-demo/` for any static host.
+
+## The playground
+
+The demo's PLAYGROUND tab runs the real analyst and rules on a chart you shape: price, 20-day trend, the last 5 days, volatility, volume, earnings date, market regime and your own headlines. You make a free account, enter your own Claude API key, and watch each step: Claude's call, the swing rules' corrections, the risk score, and the sized order or the reason it was blocked.
+
+- **Your key:** kept in the browser tab only. It is sent with each run, used once by `api/playground.py`, and never stored, logged or returned.
+- **Your account:** holds only your saved runs, and you can delete it from the tab.
+- **Limits:** 20 runs per account per day by default, and each costs a few cents of your Claude usage.
+
+### Host the playground
+
+1. Create a **new** Supabase project for playground accounts, separate from any project holding real trades, and run `playground_schema.sql` in it. Turn on email sign-in with "Confirm email", and add your demo address as the Site URL.
+2. Create a Vercel project from this repository. `vercel.json` builds the demo and deploys `api/playground.py`.
+3. Set its environment variables: `VITE_PLAYGROUND_SUPABASE_URL` and `VITE_PLAYGROUND_SUPABASE_ANON_KEY` (public, built into the page), `PLAYGROUND_SUPABASE_SERVICE_KEY` (server only), and optionally `PLAYGROUND_DAILY_RUNS`.
 
 ## Run it with your own accounts
 

@@ -6,9 +6,10 @@ export default defineConfig(({ mode }) => {
   const demo = mode === 'demo';
   return {
     plugins: [react()],
-    // The demo build swaps the database client for sample data, so the real client isn't even in the bundle.
+    // The demo build swaps the trading database's client for sample data. Only src/supabaseClient.js is
+    // swapped, so the playground's own Supabase project still gets the real client library.
     resolve: demo
-      ? { alias: { '@supabase/supabase-js': fileURLToPath(new URL('./src/demo/fakeSupabase.js', import.meta.url)) } }
+      ? { alias: [{ find: /^\.\/supabaseClient(\.js)?$/, replacement: fileURLToPath(new URL('./src/demo/fakeSupabase.js', import.meta.url)) }] }
       : {},
     build: {
       // Split large, rarely-changing dependencies into their own chunks so
@@ -18,7 +19,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             react: ['react', 'react-dom'],
             charts: ['chart.js', 'react-chartjs-2'],
-            ...(demo ? {} : { supabase: ['@supabase/supabase-js'] }),
+            supabase: ['@supabase/supabase-js'],
           },
         },
       },

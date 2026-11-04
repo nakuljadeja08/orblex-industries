@@ -29,6 +29,7 @@ import BacktestView, { BACKTEST_CSS } from "./BacktestView";
 import SignalStory, { STORY_CSS } from "./SignalStory";
 import RunPipeline, { RUN_CSS, authClient } from "./RunPipeline";
 import DemoIntro, { DEMO_CSS } from "./demo/DemoIntro";
+import Playground, { PLAYGROUND_CSS, returningToPlayground } from "./demo/Playground";
 import SmartMoneyView, { SMART_CSS, aliasesFor } from "./SmartMoneyView";
 import SwingPlansView, { SWING_CSS } from "./SwingPlansView";
 import LongTermView, { LONGTERM_CSS } from "./LongTermView";
@@ -1668,7 +1669,7 @@ function DriftView({ supabase, focusTicker }) {
 // Tabs grouped in the order data flows through the pipeline, so the nav itself
 // reads as the story: market backdrop → per-ticker inputs → decisions → output.
 const VIEW_GROUPS = [
-  ...(DEMO ? [{ label: "START HERE", views: ["HOW IT WORKS"] }] : []),
+  ...(DEMO ? [{ label: "START HERE", views: ["HOW IT WORKS", "PLAYGROUND"] }] : []),
   { label: "1 · MARKET",    views: ["REGIME", "MACRO"] },
   { label: "2 · INPUTS",    views: ["EARNINGS", "OPTIONS", "SMART MONEY"] },
   { label: "3 · DECISIONS", views: ["ANALYST", "TRADE PLANS", "RISK", "ALLOCATION"] },
@@ -1679,6 +1680,7 @@ const VIEW_GROUPS = [
 
 // One line per view: where it sits in the pipeline and what it feeds.
 const VIEW_INFO = {
+  PLAYGROUND: ["DEMO · YOUR KEY", "Shape a made-up chart and run the real analyst and rules on it, with your own Claude key."],
   REGIME:     ["STAGE 0 · MARKET",   "Rule-based market regime (SPY vs 200-day, drawdown, VIX). It sets a risk floor that raises the cash reserve and makes the analyst cautious on new buys."],
   MACRO:      ["STAGE 0 · MARKET",   "Inflation backdrop from CPI/PPI. The analyst reads its equity impact as context for every ticker."],
   EARNINGS:   ["STAGE 0 · INPUT",    "Upcoming reports per ticker. Within 5 days of earnings, the analyst caps signal strength at MODERATE."],
@@ -1703,7 +1705,7 @@ export default function Dashboard() {
   const [prices,        setPrices]        = useState({});
   const [activeTicker,  setActive]        = useState(null);
   const [book,          setBook]          = useState("swing");
-  const [activeView,    setView]          = useState(DEMO ? "HOW IT WORKS" : "TRADE PLANS");
+  const [activeView,    setView]          = useState(() => DEMO ? (returningToPlayground() ? "PLAYGROUND" : "HOW IT WORKS") : "TRADE PLANS");
   const [riskPlan,      setRiskPlan]      = useState(null);
   const [riskDetails,   setRiskDetails]   = useState([]);
   const [allocPlan,     setAllocPlan]     = useState(null);
@@ -1989,7 +1991,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <style>{CSS + BACKTEST_CSS + STORY_CSS + RUN_CSS + SMART_CSS + SWING_CSS + LONGTERM_CSS + OPS_CSS + DEMO_CSS}</style>
+      <style>{CSS + BACKTEST_CSS + STORY_CSS + RUN_CSS + SMART_CSS + SWING_CSS + LONGTERM_CSS + OPS_CSS + DEMO_CSS + PLAYGROUND_CSS}</style>
       <div className={`dash${longterm ? " book-longterm" : ""}`}>
         {DEMO && (
           <div className="demo-banner" role="note">
@@ -2224,6 +2226,7 @@ export default function Dashboard() {
             )}
 
             {activeView === "HOW IT WORKS" && <DemoIntro onGo={setView} />}
+            {activeView === "PLAYGROUND" && <Playground />}
             {activeView === "REGIME"     && <RegimeView   regime={regimeRow} />}
             {activeView === "SMART MONEY" && <SmartMoneyView supabase={supabase} universe={universe} focusTicker={focusTicker} onTicker={openStory} />}
             {activeView === "OPTIONS"    && <OptionsView  optionsFlow={optionsFlow} optionsStrikes={optionsStrikes} focusTicker={focusTicker} onTicker={openStory} />}

@@ -8,7 +8,7 @@
  * touches GitHub — hiding this button is not the security boundary.
  */
 import { useEffect, useRef, useState, useCallback } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "./supabaseClient";
 
 export const authClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,

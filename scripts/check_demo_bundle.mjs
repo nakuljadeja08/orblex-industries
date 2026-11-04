@@ -17,7 +17,8 @@ function files(dir) {
 }
 
 export function privateStrings(envPath = '.env') {
-  const out = ['supabase.co', '@gmail.com'];
+  // The playground's own Supabase address is meant to ship; the trading one comes from .env below.
+  const out = ['@gmail.com'];
   if (!existsSync(envPath)) return out;
   for (const line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
