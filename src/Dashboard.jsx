@@ -29,7 +29,8 @@ import BacktestView, { BACKTEST_CSS } from "./BacktestView";
 import SignalStory, { STORY_CSS } from "./SignalStory";
 import RunPipeline, { RUN_CSS, authClient } from "./RunPipeline";
 import DemoIntro, { DEMO_CSS } from "./demo/DemoIntro";
-import Playground, { PLAYGROUND_CSS, returningToPlayground } from "./demo/Playground";
+import { DemoNav, DemoStepper, DemoKpis, DEMO_NAV_CSS } from "./demo/DemoNav";
+import Playground, { PLAYGROUND_CSS } from "./demo/Playground";
 import SmartMoneyView, { SMART_CSS, aliasesFor } from "./SmartMoneyView";
 import SwingPlansView, { SWING_CSS } from "./SwingPlansView";
 import LongTermView, { LONGTERM_CSS } from "./LongTermView";
@@ -1705,7 +1706,7 @@ export default function Dashboard() {
   const [prices,        setPrices]        = useState({});
   const [activeTicker,  setActive]        = useState(null);
   const [book,          setBook]          = useState("swing");
-  const [activeView,    setView]          = useState(() => DEMO ? (returningToPlayground() ? "PLAYGROUND" : "HOW IT WORKS") : "TRADE PLANS");
+  const [activeView,    setView]          = useState(DEMO ? "HOW IT WORKS" : "TRADE PLANS");
   const [riskPlan,      setRiskPlan]      = useState(null);
   const [riskDetails,   setRiskDetails]   = useState([]);
   const [allocPlan,     setAllocPlan]     = useState(null);
@@ -1730,6 +1731,7 @@ export default function Dashboard() {
   const [signalHistory, setSignalHistory] = useState({});
   // Set when you follow a link out of a ticker's story; drives highlights + the back button.
   const [focusTicker,   setFocusTicker]   = useState(null);
+  const goView = useCallback(v => { setFocusTicker(null); setView(v); }, []);
 
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -1991,8 +1993,8 @@ export default function Dashboard() {
 
   return (
     <>
-      <style>{CSS + BACKTEST_CSS + STORY_CSS + RUN_CSS + SMART_CSS + SWING_CSS + LONGTERM_CSS + OPS_CSS + DEMO_CSS + PLAYGROUND_CSS}</style>
-      <div className={`dash${longterm ? " book-longterm" : ""}`}>
+      <style>{CSS + BACKTEST_CSS + STORY_CSS + RUN_CSS + SMART_CSS + SWING_CSS + LONGTERM_CSS + OPS_CSS + DEMO_CSS + DEMO_NAV_CSS + PLAYGROUND_CSS}</style>
+      <div className={`dash${longterm ? " book-longterm" : ""}${DEMO ? " is-demo" : ""}`}>
         {DEMO && (
           <div className="demo-banner" role="note">
             <b>DEMO · SAMPLE DATA</b> Made-up tickers and numbers. No real account, no real orders, not financial advice.
@@ -2053,7 +2055,8 @@ export default function Dashboard() {
         </div>
 
         {longterm ? <LongTermView /> : <>
-        {/* Nav */}
+        {/* Nav: the demo gets a guided section stepper, the private dashboard its compact tab strip */}
+        {DEMO ? <DemoNav groups={VIEW_GROUPS} view={activeView} onGo={goView} /> : (
         <nav className="nav-tabs" role="tablist" aria-label="Dashboard views">
           {VIEW_GROUPS.map(g => (
             <div className="nav-group" key={g.label} role="presentation">
@@ -2066,6 +2069,11 @@ export default function Dashboard() {
             </div>
           ))}
         </nav>
+        )}
+
+        {DEMO && activeView !== "PLAYGROUND" && !loading && !error && (
+          <DemoKpis supabase={supabase} reports={reports} regime={regimeRow} onGo={goView} />
+        )}
 
         {VIEW_INFO[activeView] && (
           <div className="context-bar">
@@ -2225,7 +2233,7 @@ export default function Dashboard() {
               </>
             )}
 
-            {activeView === "HOW IT WORKS" && <DemoIntro onGo={setView} />}
+            {activeView === "HOW IT WORKS" && <DemoIntro onGo={goView} />}
             {activeView === "PLAYGROUND" && <Playground />}
             {activeView === "REGIME"     && <RegimeView   regime={regimeRow} />}
             {activeView === "SMART MONEY" && <SmartMoneyView supabase={supabase} universe={universe} focusTicker={focusTicker} onTicker={openStory} />}
@@ -2242,6 +2250,7 @@ export default function Dashboard() {
             {activeView === "DRIFT"      && <DriftView supabase={supabase} focusTicker={focusTicker} />}
             {activeView === "PIPELINE"   && <PipelineView pipelineMetrics={pipelineMetrics} />}
             {activeView === "BACKTEST"   && <BacktestView supabase={supabase} />}
+            {DEMO && <DemoStepper groups={VIEW_GROUPS} view={activeView} onGo={goView} />}
           </>
         )}
         </>}

@@ -1,25 +1,15 @@
-// Playground.jsx — the demo's PLAYGROUND tab. A visitor makes an account, enters their own Claude
-// key, shapes a made-up chart, and watches the real analyst and rules handle it, step by step.
+// Playground.jsx — the demo's PLAYGROUND tab. A visitor enters their own Claude key, shapes a
+// made-up chart, and watches the real analyst and rules handle it, step by step.
 //
-// Accounts live in the playground's own Supabase project (playground_schema.sql), never the trading
-// one. The key stays in this tab's memory: it is sent with each run to /api/playground
-// (deploy/vercel-api/playground.py), used once, and never stored or shown again.
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+// No account: the key stays in this tab's memory. It is sent with each run to /api/playground
+// (deploy/vercel-api/playground.py), used once, and never stored or shown again. Recent runs are
+// kept in this browser only (localStorage), without the key.
+import { useMemo, useState } from "react";
 
-const URL_ = import.meta.env.VITE_PLAYGROUND_SUPABASE_URL;
-const ANON = import.meta.env.VITE_PLAYGROUND_SUPABASE_ANON_KEY;
-const pg = URL_ && ANON
-  ? createClient(URL_, ANON, { auth: { storageKey: "orblex-playground-auth", persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
-  : null;
-
-const RETURN_KEY = "orblex-playground-return";   // reopen this tab after the sign-in link
-const store = {
-  get: k => { try { return window.sessionStorage.getItem(k); } catch { return null; } },
-  set: (k, v) => { try { window.sessionStorage.setItem(k, v); } catch { /* private mode */ } },
-  del: k => { try { window.sessionStorage.removeItem(k); } catch { /* private mode */ } },
-};
-export const returningToPlayground = () => { const r = store.get(RETURN_KEY); store.del(RETURN_KEY); return !!r; };
+const HISTORY_KEY = "orblex-playground-runs";
+const HISTORY_MAX = 10;
+const loadRuns = () => { try { return JSON.parse(window.localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; } };
+const saveRuns = runs => { try { window.localStorage.setItem(HISTORY_KEY, JSON.stringify(runs)); } catch { /* private mode */ } };
 
 // Same names and limits as playground.py's PRESETS and LIMITS.
 const BASE = { ticker: "ACME", company: "Acme Robotics", sector: "Robotics", price: 62, trend_20d_pct: 8, move_5d_pct: -3,
@@ -61,44 +51,6 @@ function Spark({ bars, entry, stop, target }) {
       <path d={line} className="pg-spark-line" />
       {level(target, "pg-lvl pg-lvl-g", "target")}{level(entry, "pg-lvl pg-lvl-a", "entry")}{level(stop, "pg-lvl pg-lvl-r", "stop")}
     </svg>
-  );
-}
-
-function Account({ session, onReturnHere }) {
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  if (!pg) return <div className="pg-note">Accounts aren't set up on this copy of the demo, so runs are off. See playground_schema.sql.</div>;
-  if (session) return (
-    <div className="pg-row">
-      <span>Signed in as <b>{session.user?.email}</b></span>
-      <button className="pg-link" onClick={() => pg.auth.signOut()}>Sign out</button>
-      {confirmDelete
-        ? <span className="pg-warn">Delete your account and all your saved runs?{" "}
-            <button className="pg-link pg-danger" onClick={async () => { await pg.rpc("delete_my_account"); await pg.auth.signOut(); }}>Delete</button>{" "}
-            <button className="pg-link" onClick={() => setConfirmDelete(false)}>Keep it</button></span>
-        : <button className="pg-link" onClick={() => setConfirmDelete(true)}>Delete my account</button>}
-    </div>
-  );
-  if (sent) return <div className="pg-note">Check <b>{email}</b> for a sign-in link, and open it in this browser.</div>;
-  const send = async e => {
-    e.preventDefault();
-    setBusy(true); setErr(null);
-    onReturnHere();
-    const { error } = await pg.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } });
-    setBusy(false);
-    if (error) setErr(error.message); else setSent(true);
-  };
-  return (
-    <form className="pg-row" onSubmit={send}>
-      <label className="pg-label" htmlFor="pg-email">Create an account or sign in</label>
-      <input id="pg-email" className="pg-input" type="email" required autoComplete="email" placeholder="you@example.com"
-             value={email} onChange={e => setEmail(e.target.value)} />
-      <button className="pg-btn" type="submit" disabled={busy || !email.trim()}>{busy ? "Sending…" : "Email me a link"}</button>
-      {err && <span className="pg-err">{err}</span>}
-    </form>
   );
 }
 
@@ -148,26 +100,13 @@ function Trace({ r }) {
 }
 
 export default function Playground() {
-  const [session, setSession] = useState(undefined);
   const [key, setKey] = useState("");
   const [s, setS] = useState({ ...BASE, ...PRESETS["Clean pullback"] });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [result, setResult] = useState(null);
-  const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    if (!pg) { setSession(null); return; }
-    pg.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = pg.auth.onAuthStateChange((_e, x) => setSession(x));
-    return () => data.subscription.unsubscribe();
-  }, []);
-  const loadHistory = useCallback(async () => {
-    if (!pg || !session) { setHistory([]); return; }
-    const { data } = await pg.from("playground_runs").select("id,created_at,scenario,result").order("created_at", { ascending: false }).limit(10);
-    setHistory(data || []);
-  }, [session]);
-  useEffect(() => { loadHistory(); }, [loadHistory]);
+  const [history, setHistory] = useState(loadRuns);
+  const keepRuns = runs => { setHistory(runs); saveRuns(runs); };
 
   const set = (k, v) => setS(x => ({ ...x, [k]: v }));
   const scenario = useMemo(() => ({ ...s, headlines: s.headlines.split("\n").map(h => h.trim()).filter(Boolean).slice(0, 3) }), [s]);
@@ -177,7 +116,7 @@ export default function Playground() {
     try {
       const resp = await fetch("/api/playground", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}`, "X-Claude-Key": key.trim() },
+        headers: { "Content-Type": "application/json", "X-Claude-Key": key.trim() },
         body: JSON.stringify(scenario),
       });
       const text = await resp.text();
@@ -185,19 +124,18 @@ export default function Playground() {
       try { data = JSON.parse(text); } catch { throw new Error("The playground server isn't reachable here. It runs on the deployed demo site."); }
       if (!resp.ok) throw new Error(data.error || `The run failed (${resp.status}).`);
       setResult(data.result);
-      loadHistory();
+      const run = { id: Date.now(), created_at: new Date().toISOString(), scenario: data.result.scenario, result: data.result };
+      keepRuns([run, ...history].slice(0, HISTORY_MAX));
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const ready = session && key.trim().startsWith("sk-ant-");
+  const ready = key.trim().startsWith("sk-ant-");
   return (
     <div className="pg">
       <div className="pg-intro">
         <h2>Try the real analyst on a chart you make</h2>
         <p>Shape a made-up stock, then run it. Your own Claude key calls the same analyst prompt and model the live system uses, and the same Python rules then check, size and guard the trade. Each run costs a few cents of your Claude usage. Nothing here touches a real account.</p>
       </div>
-
-      <section className="pg-card"><h3>Account</h3><Account session={session} onReturnHere={() => store.set(RETURN_KEY, "1")} /></section>
 
       <section className="pg-card">
         <h3>Your Claude API key</h3>
@@ -229,8 +167,7 @@ export default function Playground() {
                     onChange={e => set("headlines", e.target.value)} /></label>
         <div className="pg-row">
           <button className="pg-btn" onClick={runIt} disabled={!ready || busy}>{busy ? "Running… about 10 seconds" : "Run it"}</button>
-          {!session && <span className="pg-note">Sign in to run.</span>}
-          {session && !ready && <span className="pg-note">Enter your Claude key to run.</span>}
+          {!ready && <span className="pg-note">Enter your Claude key to run.</span>}
         </div>
         {err && <div className="pg-err" role="alert">{err}</div>}
       </section>
@@ -240,13 +177,14 @@ export default function Playground() {
       {history.length > 0 && (
         <section className="pg-card">
           <h3>Your recent runs</h3>
+          <p className="pg-note">Saved in this browser only.</p>
           <ul className="pg-history">
             {history.map(h => (
               <li key={h.id}>
                 <button className="pg-link" onClick={() => setResult(h.result)}>
                   {new Date(h.created_at).toLocaleString()} · {h.scenario?.ticker} · {h.result?.analyst?.signal} · {h.result?.order?.status || "no order"}
                 </button>
-                <button className="pg-link pg-danger" aria-label="Delete this run" onClick={async () => { await pg.from("playground_runs").delete().eq("id", h.id); loadHistory(); }}>delete</button>
+                <button className="pg-link pg-danger" aria-label="Delete this run" onClick={() => keepRuns(history.filter(x => x.id !== h.id))}>delete</button>
               </li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
 """
 The public playground: the scenario engine on the real rules (with a fake analyst, so no Claude call),
-and the server function's sign-in, key, limit and storage handling (with a fake HTTP client).
+and the server function's key and scenario checks.
 """
 
 import importlib.util
@@ -79,51 +79,18 @@ spec.loader.exec_module(api)
 KEY = "sk-ant-api03-" + "x" * 30
 
 
-class R:
-    def __init__(self, status, data):
-        self.status_code, self._data = status, data
-
-    def json(self):
-        return self._data
+def call(key=KEY, body=b'{"price": 42}'):
+    return api.serve(key, body, run=lambda s: pg.run(s, buy, TODAY))
 
 
-class FakeHTTP:
-    def __init__(self, signed_in=True, used=0):
-        self.signed_in, self.used, self.posted = signed_in, used, []
-
-    def get(self, url, headers=None, params=None, timeout=None):
-        if url.endswith("/auth/v1/user"):
-            return R(200, {"id": "user-1"}) if self.signed_in else R(401, {})
-        return R(200, [{"id": i} for i in range(self.used)])
-
-    def post(self, url, headers=None, data=None, timeout=None):
-        self.posted.append(json.loads(data))
-        return R(201, [{"id": 7}])
+def test_run_returns_the_result_without_the_key():
+    status, out = call()
+    assert status == 200 and out["result"]["order"]["status"] == "PROPOSED"
+    assert KEY not in json.dumps(out)
 
 
-@pytest.fixture(autouse=True)
-def env(monkeypatch):
-    monkeypatch.setenv("PLAYGROUND_SUPABASE_URL", "https://playground.example")
-    monkeypatch.setenv("VITE_PLAYGROUND_SUPABASE_ANON_KEY", "anon")
-    monkeypatch.setenv("PLAYGROUND_SUPABASE_SERVICE_KEY", "service")
-
-
-def call(http, key=KEY, auth="Bearer t", body=b'{"price": 42}'):
-    return api.serve(auth, key, body, http=http, run=lambda s: pg.run(s, buy, TODAY))
-
-
-def test_run_saves_the_result_without_the_key():
-    http = FakeHTTP()
-    status, out = call(http)
-    assert status == 200 and out["id"] == 7 and out["result"]["order"]["status"] == "PROPOSED"
-    assert http.posted[0]["user_id"] == "user-1" and KEY not in json.dumps(http.posted) and KEY not in json.dumps(out)
-
-
-def test_sign_in_key_and_daily_limit_are_required(monkeypatch):
-    assert call(FakeHTTP(), auth="")[0] == 401
-    assert call(FakeHTTP(signed_in=False))[0] == 401
-    assert call(FakeHTTP(), key="not-a-key")[0] == 400
-    assert call(FakeHTTP(), body=b"[1, 2]")[0] == 400
-    assert call(FakeHTTP(used=20))[0] == 429
-    monkeypatch.delenv("PLAYGROUND_SUPABASE_SERVICE_KEY")
-    assert call(FakeHTTP())[0] == 503
+def test_key_and_a_readable_scenario_are_required():
+    assert call(key="")[0] == 400
+    assert call(key="not-a-key")[0] == 400
+    assert call(body=b"[1, 2]")[0] == 400
+    assert call(body=b"{" + b" " * api.MAX_BODY + b"}")[0] == 400

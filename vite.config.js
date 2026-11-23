@@ -6,8 +6,7 @@ export default defineConfig(({ mode }) => {
   const demo = mode === 'demo';
   return {
     plugins: [react()],
-    // The demo build swaps the trading database's client for sample data. Only src/supabaseClient.js is
-    // swapped, so the playground's own Supabase project still gets the real client library.
+    // The demo build swaps the trading database's client (src/supabaseClient.js) for sample data.
     resolve: demo
       ? { alias: [{ find: /^\.\/supabaseClient(\.js)?$/, replacement: fileURLToPath(new URL('./src/demo/fakeSupabase.js', import.meta.url)) }] }
       : {},
