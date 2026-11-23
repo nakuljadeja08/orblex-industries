@@ -4,7 +4,7 @@ An AI analyst that proposes swing trades, and Python rules that decide what gets
 
 Each weekday, a pipeline turns market data into trade plans held for 1 to 10 days. Claude reads the context and proposes a call with an entry, a stop and a target. Python code owns every number, cap and order rule, and can only make a trade smaller or stop it. A person approves every order.
 
-**Live demo:** the dashboard on made-up tickers and numbers, with no login. See [Run the demo](#run-the-demo).
+**Live demo:** [demo.orblexindustries.com](https://demo.orblexindustries.com), the dashboard on made-up tickers and numbers, with no login. To run it yourself, see [Run the demo](#run-the-demo).
 
 > **Not financial advice.** This is a personal project, shared so others can learn from the design. It has not shown a proven edge, and real trading can lose money. If you connect a brokerage account, you are responsible for every order it places.
 
